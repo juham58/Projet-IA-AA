@@ -3,3 +3,4 @@ musicnet_midis
 musicnet_metadata.csv
 musicnet.npz
 *.vscode
+!musicnet/instrument_labels.csv
