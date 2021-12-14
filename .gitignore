@@ -1,0 +1,5 @@
+musicnet
+musicnet_midis
+musicnet_metadata.csv
+musicnet.npz
+*.vscode
