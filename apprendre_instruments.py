@@ -16,7 +16,7 @@ dir = Path.cwd()/"musicnet"/"data"
 files = dir.glob("*.npy")
 compteur = 0
 for i, file in tqdm(enumerate(files)):
-    if compteur % 8 == 0:
+    if compteur % 329 == 0:
         data.append(np.load(file))
         labels = np.vstack((labels, tous_labels[i]))
     compteur += 1
