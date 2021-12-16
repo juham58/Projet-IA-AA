@@ -1,4 +1,5 @@
 import pickle
+import random
 import pandas as pd
 import numpy as np
 import librosa
@@ -8,37 +9,42 @@ from sklearn.multioutput import MultiOutputClassifier
 from tqdm import tqdm
 import torch
 from torch import nn
+import matplotlib.pyplot as plt
 
 from torch.utils.data import Dataset, random_split
 import torch.nn.functional as F
 from torch.nn import init
 
 class InstrumentsDataset(Dataset):
-    def __init__(self):
+    def __init__(self, fraction=1):
         super().__init__()
         self.data = []
         self.labels = np.array([]).reshape(0, 11)
         tous_labels = np.load(Path.cwd()/"musicnet"/"instrument_labels.npy")
         dir = Path.cwd()/"musicnet"/"data"
         files = dir.glob("*.npy")
-        compteur = 0
         for i, file in tqdm(enumerate(files)):
-            if compteur % 10 == 0:
-                self.data.append(np.load(file))
+            selecteur = random.randint(1, fraction)
+            if selecteur == 1:
+                fichier = np.load(file)
+                self.data.append(fichier)
                 self.labels = np.vstack((self.labels, tous_labels[i]))
-            compteur += 1
+                del fichier
+        self.data = np.array(self.data)
         self.data = torch.as_tensor(self.data)[None, :]
+        self.data = torch.permute(self.data, (1, 0, 2, 3))
+        print(self.data.shape)
         print("self.data = torch.tensor(self.data)[None, :] done")
         self.targets = torch.tensor(self.labels)
         print("self.targets = torch.tensor(self.labels) done")
 
     def __getitem__(self, index):
-        return self.data[index]
+        return self.data[index], self.targets[index]
 
     def __len__(self):
         return self.targets.shape[0]
 
-train_set = InstrumentsDataset()
+train_set = InstrumentsDataset(fraction=1)
 print("Données d'entraînement chargées")
 
 num_items = len(train_set)
@@ -47,8 +53,8 @@ num_val = num_items - num_train
 train_ds, val_ds = random_split(train_set, [num_train, num_val])
 
 # Create training and validation data loaders
-train_dl = torch.utils.data.DataLoader(train_ds, batch_size=16, shuffle=True)
-val_dl = torch.utils.data.DataLoader(val_ds, batch_size=16, shuffle=False)
+train_dl = torch.utils.data.DataLoader(train_ds, batch_size=10, shuffle=True)
+val_dl = torch.utils.data.DataLoader(val_ds, batch_size=10, shuffle=False)
 print("Dataloaders créés")
 
 class AudioClassifier (nn.Module):
@@ -59,15 +65,15 @@ class AudioClassifier (nn.Module):
         super().__init__()
         conv_layers = []
 
-        # First Convolution Block with Relu and Batch Norm. Use Kaiming Initialization
-        self.conv1 = nn.Conv2d(2, 8, kernel_size=(5, 5), stride=(2, 2), padding=(2, 2))
+        # Premier bloc de convolutions avec Relu et BatchNorm
+        self.conv1 = nn.Conv2d(1, 8, kernel_size=(5, 5), stride=(2, 2), padding=(2, 2))
         self.relu1 = nn.ReLU()
         self.bn1 = nn.BatchNorm2d(8)
         init.kaiming_normal_(self.conv1.weight, a=0.1)
         self.conv1.bias.data.zero_()
         conv_layers += [self.conv1, self.relu1, self.bn1]
 
-        # Second Convolution Block
+        # Deuxième bloc
         self.conv2 = nn.Conv2d(8, 16, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1))
         self.relu2 = nn.ReLU()
         self.bn2 = nn.BatchNorm2d(16)
@@ -75,7 +81,7 @@ class AudioClassifier (nn.Module):
         self.conv2.bias.data.zero_()
         conv_layers += [self.conv2, self.relu2, self.bn2]
 
-        # Second Convolution Block
+        # Troisième bloc
         self.conv3 = nn.Conv2d(16, 32, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1))
         self.relu3 = nn.ReLU()
         self.bn3 = nn.BatchNorm2d(32)
@@ -83,7 +89,7 @@ class AudioClassifier (nn.Module):
         self.conv3.bias.data.zero_()
         conv_layers += [self.conv3, self.relu3, self.bn3]
 
-        # Second Convolution Block
+        # Quatrième bloc
         self.conv4 = nn.Conv2d(32, 64, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1))
         self.relu4 = nn.ReLU()
         self.bn4 = nn.BatchNorm2d(64)
@@ -91,9 +97,33 @@ class AudioClassifier (nn.Module):
         self.conv4.bias.data.zero_()
         conv_layers += [self.conv4, self.relu4, self.bn4]
 
-        # Linear Classifier
+        # Cinquième bloc
+        self.conv5 = nn.Conv2d(64, 128, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1))
+        self.relu5 = nn.ReLU()
+        self.bn5 = nn.BatchNorm2d(128)
+        init.kaiming_normal_(self.conv5.weight, a=0.1)
+        self.conv5.bias.data.zero_()
+        conv_layers += [self.conv5, self.relu5, self.bn5]
+
+        # Cinquième bloc
+        self.conv6 = nn.Conv2d(128, 256, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1))
+        self.relu6 = nn.ReLU()
+        self.bn6 = nn.BatchNorm2d(256)
+        init.kaiming_normal_(self.conv6.weight, a=0.1)
+        self.conv5.bias.data.zero_()
+        conv_layers += [self.conv6, self.relu6, self.bn6]
+
+        # Cinquième bloc
+        self.conv7 = nn.Conv2d(256, 512, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1))
+        self.relu7 = nn.ReLU()
+        self.bn7 = nn.BatchNorm2d(512)
+        init.kaiming_normal_(self.conv7.weight, a=0.1)
+        self.conv5.bias.data.zero_()
+        conv_layers += [self.conv7, self.relu7, self.bn7]
+
+        # Classifieur linéaire
         self.ap = nn.AdaptiveAvgPool2d(output_size=1)
-        self.lin = nn.Linear(in_features=64, out_features=11)
+        self.lin = nn.Linear(in_features=512, out_features=11)
 
         # Wrap the Convolutional Blocks
         self.conv = nn.Sequential(*conv_layers)
@@ -111,6 +141,7 @@ class AudioClassifier (nn.Module):
 
         # Linear layer
         x = self.lin(x)
+        x = torch.sigmoid(x)
 
         # Final output
         return x
@@ -127,92 +158,152 @@ next(myModel.parameters()).device
 # Training Loop
 # ----------------------------
 def training(model, train_dl, num_epochs):
-  # Loss Function, Optimizer and Scheduler
-  criterion = nn.CrossEntropyLoss()
-  optimizer = torch.optim.Adam(model.parameters(),lr=0.001)
-  scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer, max_lr=0.001,
-                                                steps_per_epoch=int(len(train_dl)),
-                                                epochs=num_epochs,
-                                                anneal_strategy='linear')
+    # Loss Function, Optimizer and Scheduler
+    liste_precision = []
+    liste_rappel = []
+    criterion = nn.CrossEntropyLoss()
+    optimizer = torch.optim.Adam(model.parameters(),lr=0.001)
+    scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer, max_lr=0.001,
+                                                    steps_per_epoch=int(len(train_dl)),
+                                                    epochs=num_epochs,
+                                                    anneal_strategy='linear')
 
-  # Repeat for each epoch
-  for epoch in range(num_epochs):
-    running_loss = 0.0
-    correct_prediction = 0
-    total_prediction = 0
+    # Repeat for each epoch
+    for epoch in range(num_epochs):
+        vp, fp, vn, fn = 0, 0, 0, 0
+        running_loss = 0.0
+        correct_prediction = 0
+        total_prediction = 0
 
-    # Repeat for each batch in the training set
-    for i, data in enumerate(train_dl):
-        # Get the input features and target labels, and put them on the GPU
-        inputs, labels = data[0].to(device), data[1].to(device)
+        # Repeat for each batch in the training set
+        for i, data in tqdm(enumerate(train_dl)):
+            # Get the input features and target labels, and put them on the GPU
+            inputs, labels = data[0].to(device), data[1].to(device)
 
-        # Normalize the inputs
-        inputs_m, inputs_s = inputs.mean(), inputs.std()
-        inputs = (inputs - inputs_m) / inputs_s
+            # Normalize the inputs
+            inputs_m, inputs_s = inputs.mean(), inputs.std()
+            inputs = (inputs - inputs_m) / inputs_s
 
-        # Zero the parameter gradients
-        optimizer.zero_grad()
+            # Zero the parameter gradients
+            optimizer.zero_grad()
 
-        # forward + backward + optimize
-        outputs = model(inputs)
-        loss = criterion(outputs, labels)
-        loss.backward()
-        optimizer.step()
-        scheduler.step()
+            # forward + backward + optimize
+            outputs = model(inputs)
+            loss = criterion(outputs, labels)
+            loss.backward()
+            optimizer.step()
+            scheduler.step()
 
-        # Keep stats for Loss and Accuracy
-        running_loss += loss.item()
+            # Keep stats for Loss and Accuracy
+            running_loss += loss.item()
 
-        # Get the predicted class with the highest score
-        _, prediction = torch.max(outputs,1)
-        # Count of predictions that matched the target label
-        correct_prediction += (prediction == labels).sum().item()
-        total_prediction += prediction.shape[0]
+            # Get the predicted class with the highest score
+            #_, prediction = torch.max(outputs,1)
+            # Count of predictions that matched the target label
+            print(" ", outputs[0])
+            outputs = torch.round(outputs)
+            print(" ", outputs[0])
 
-        #if i % 10 == 0:    # print every 10 mini-batches
-        #    print('[%d, %5d] loss: %.3f' % (epoch + 1, i + 1, running_loss / 10))
+            matrix = torch.zeros((2, 2))
+
+            non_predictions = torch.where(outputs == 1, 0, 1)
+            non_labels = torch.where(labels == 1, 0, 1)
+
+            matrix[0][0] = torch.sum(torch.where(outputs+labels == 2, 1, 0))
+            matrix[1][1] = torch.sum(torch.where(outputs+labels == 0, 1, 0))
+            
+            # Si les targets positives correspondent au contraire des predictions: faux négatif
+            matrix[0][1] = torch.sum(torch.where(non_predictions+labels == 2, 1, 0))
+            
+            # Si les predictions positives correspondent au contraire des targets: faux positif
+            matrix[1][0] = torch.sum(torch.where(outputs+non_labels == 2, 1, 0))
+
+            correct_prediction += (outputs == labels).sum().item()
+            total_prediction += outputs.shape[0]
+            vp += matrix[0][0]
+            fp += matrix[1][0]
+            vn += matrix[1][1]
+            fn += matrix[0][1]
+            
+
+            #if i % 10 == 0:    # print every 10 mini-batches
+            #    print('[%d, %5d] loss: %.3f' % (epoch + 1, i + 1, running_loss / 10))
     
-    # Print stats at the end of the epoch
-    num_batches = len(train_dl)
-    avg_loss = running_loss / num_batches
-    acc = correct_prediction/total_prediction
-    print(f'Epoch: {epoch}, Loss: {avg_loss:.2f}, Accuracy: {acc:.2f}')
+        # Print stats at the end of the epoch
+        num_batches = len(train_dl)
+        avg_loss = running_loss / num_batches
+        precision = vp/(fp+vp)
+        rappel = vp/(fn+vp)
+        liste_precision.append(precision)
+        liste_rappel.append(rappel)
+        print(f'Epoch: {epoch}, Loss: {avg_loss:.2f}, Précision: {precision:.2f}, Rappel: {rappel:.2f}')
 
-  print('Finished Training')
+    print('Finished Training')
+    return liste_precision, liste_rappel
   
-num_epochs=2   # Just for demo, adjust this higher.
+num_epochs=3
 print("Début de l'entraînement")
-training(myModel, train_dl, num_epochs)
+liste_precision, liste_rappel = training(myModel, train_dl, num_epochs)
 
 # ----------------------------
 # Inference
 # ----------------------------
 def inference (model, val_dl):
-  correct_prediction = 0
-  total_prediction = 0
+    correct_prediction = 0
+    total_prediction = 0
 
-  # Disable gradient updates
-  with torch.no_grad():
-    for data in val_dl:
-      # Get the input features and target labels, and put them on the GPU
-      inputs, labels = data[0].to(device), data[1].to(device)
+    # Disable gradient updates
+    with torch.no_grad():
+        vp, fp, vn, fn = 0, 0, 0, 0
+        for data in val_dl:
+            # Get the input features and target labels, and put them on the GPU
+            inputs, labels = data[0].to(device), data[1].to(device)
 
-      # Normalize the inputs
-      inputs_m, inputs_s = inputs.mean(), inputs.std()
-      inputs = (inputs - inputs_m) / inputs_s
+            # Normalize the inputs
+            inputs_m, inputs_s = inputs.mean(), inputs.std()
+            inputs = (inputs - inputs_m) / inputs_s
 
-      # Get predictions
-      outputs = model(inputs)
+            # Get predictions
+            outputs = model(inputs)
 
-      # Get the predicted class with the highest score
-      _, prediction = torch.max(outputs,1)
-      # Count of predictions that matched the target label
-      correct_prediction += (prediction == labels).sum().item()
-      total_prediction += prediction.shape[0]
-    
-  acc = correct_prediction/total_prediction
-  print(f'Accuracy: {acc:.2f}, Total items: {total_prediction}')
+            # Get the predicted class with the highest score
+            #_, prediction = torch.max(outputs,1)
+            # Count of predictions that matched the target label
+            outputs = torch.round(outputs)
+
+            matrix = torch.zeros((2, 2))
+
+            non_predictions = torch.where(outputs == 1, 0, 1)
+            non_labels = torch.where(labels == 1, 0, 1)
+
+            matrix[0][0] = torch.sum(torch.where(outputs+labels == 2, 1, 0))
+            matrix[1][1] = torch.sum(torch.where(outputs+labels == 0, 1, 0))
+            
+            # Si les targets positives correspondent au contraire des predictions: faux négatif
+            matrix[0][1] = torch.sum(torch.where(non_predictions+labels == 2, 1, 0))
+            
+            # Si les predictions positives correspondent au contraire des targets: faux positif
+            matrix[1][0] = torch.sum(torch.where(outputs+non_labels == 2, 1, 0))
+
+            correct_prediction += (outputs == labels).sum().item()
+            total_prediction += outputs.shape[0]
+            vp += matrix[0][0]
+            fp += matrix[1][0]
+            vn += matrix[1][1]
+            fn += matrix[0][1]
+
+        acc = correct_prediction/total_prediction
+        precision = vp/(fp+vp)
+        rappel = vp/(fn+vp)
+        print(f'Précision: {precision:.2f}, Rappel: {rappel:.2f}, Total items: {total_prediction}')
 
 # Run inference on trained model with the validation set
 print("Début de l'inférence")
 inference(myModel, val_dl)
+
+plt.figure()
+plt.plot(np.arange(num_epochs), liste_precision, label="Précision")
+plt.plot(np.arange(num_epochs), liste_rappel, label="Rappel")
+plt.legend()
+plt.grid()
+plt.show()
