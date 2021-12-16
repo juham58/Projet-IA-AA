@@ -41,7 +41,7 @@ for file in files:
         if instrument not in liste_instruments:
             liste_instruments.append(instrument)
         array_instruments = instrument_vers_label(instrument, array_instruments)
-    liste_instruments = liste_instruments.sort()
+    liste_instruments.sort()
     Id = str(file)[-8:-4]
     instruments = np.vstack((instruments, array_instruments))
     instruments_csv = instruments_csv.append({"ID": int(Id), "Instruments": liste_instruments}, ignore_index=True)
