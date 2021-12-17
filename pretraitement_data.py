@@ -14,7 +14,7 @@ taille_max = 0
 labels = pd.read_csv(Path.cwd()/"musicnet"/"instrument_labels.csv")
 for file in tqdm(files):
     x, sr = librosa.load(file)
-    #x = librosa.resample(x, sr, 10000)
+    x = librosa.resample(x, sr, 5500)
     X = librosa.stft(x)
     Xdb = librosa.amplitude_to_db(abs(X))
     data.append(Xdb)
