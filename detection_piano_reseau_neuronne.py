@@ -7,10 +7,9 @@ import numpy as np
 from matplotlib import pyplot as plt
 import time
 from torch.optim import SGD
-#from compositeur import train
-#import creer_labels_instruments
 
-#piano,train_ds, val_ds,'cpu',70,0.01,0.9
+
+
 def train_model(model,  train_loader, validation_loader, device, nb_epoch, learning_rate,momentum):
     def compute_accuracy(dataloader):
         # Cette fonction est tirée directement de la question 1 du devoir 4
@@ -94,18 +93,10 @@ def train_model(model,  train_loader, validation_loader, device, nb_epoch, learn
 
 
 file = np.load('pretrained_data.npy', allow_pickle=True).reshape(1)[0]
-print(file['target'])
-#
-# data, target = shuffle(file['data'], file['target'])
-#
-# data_train = data[:300]
-# target_train = target[:300]
-#
-# data_test = data[300:]
-# target_test = target[300:]
 
 
 
+# Création du jeu de données utilisé pour la détection du piano contre tous.
 
 class PianoDataset(Dataset):
     def __init__(self):
@@ -122,7 +113,7 @@ class PianoDataset(Dataset):
         return self.targets.shape[0]
 
 
-
+# Premier réseau à deux couches
 
 class PianoNote1(nn.Module):
 
@@ -145,6 +136,8 @@ class PianoNote1(nn.Module):
         logits = self.linear_relu_stack(x)
         return torch.sigmoid(logits)
 
+
+# Deuxième réseau à quatre couches
 
 class PianoNote2(nn.Module):
 
@@ -172,6 +165,7 @@ class PianoNote2(nn.Module):
         return torch.sigmoid(logits)
 
 
+
 train_set = PianoDataset()
 
 
@@ -183,14 +177,15 @@ train_ds, val_ds = random_split(train_set, [num_train, num_val])
 train_dl = torch.utils.data.DataLoader(train_ds, batch_size=10, shuffle=True)
 val_dl = torch.utils.data.DataLoader(val_ds, batch_size=10, shuffle=False)
 
-
+# Premier modèle
 piano = PianoNote1()
 
-Sol = train_model(piano,train_dl, val_dl,'cpu',70,0.01,0.9)
+# Deuxième modèle
+# piano = PianoNote2()
 
 
 
-scores = Sol
+scores = train_model(piano,train_dl, val_dl,'cpu',70,0.01,0.9)
 plt.plot(scores[:, 0], scores[:, 1], color="blue", label="Score en entrainement")
 plt.plot(scores[:, 0], scores[:, 2], color="red", label="Score en validation")
 plt.ylabel("Scores")
