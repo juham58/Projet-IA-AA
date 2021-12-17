@@ -1,11 +1,7 @@
-import pickle
 import random
 import pandas as pd
 import numpy as np
-import librosa
 from pathlib import Path
-from sklearn.neural_network import MLPClassifier
-from sklearn.multioutput import MultiOutputClassifier
 from tqdm import tqdm
 import torch
 from torch import nn
@@ -27,16 +23,13 @@ class InstrumentsDataset(Dataset):
             selecteur = random.randint(1, fraction)
             if selecteur == 1:
                 fichier = np.load(file)
-                self.data.append(fichier)
+                self.data.append(fichier[:, 5000:25000])
                 self.labels = np.vstack((self.labels, tous_labels[i]))
                 del fichier
         self.data = np.array(self.data)
         self.data = torch.as_tensor(self.data)[None, :]
         self.data = torch.permute(self.data, (1, 0, 2, 3))
-        print(self.data.shape)
-        print("self.data = torch.tensor(self.data)[None, :] done")
         self.targets = torch.tensor(self.labels)
-        print("self.targets = torch.tensor(self.labels) done")
 
     def __getitem__(self, index):
         return self.data[index], self.targets[index]
@@ -53,8 +46,8 @@ num_val = num_items - num_train
 train_ds, val_ds = random_split(train_set, [num_train, num_val])
 
 # Create training and validation data loaders
-train_dl = torch.utils.data.DataLoader(train_ds, batch_size=10, shuffle=True)
-val_dl = torch.utils.data.DataLoader(val_ds, batch_size=10, shuffle=False)
+train_dl = torch.utils.data.DataLoader(train_ds, batch_size=15, shuffle=True)
+val_dl = torch.utils.data.DataLoader(val_ds, batch_size=15, shuffle=False)
 print("Dataloaders créés")
 
 class AudioClassifier (nn.Module):
@@ -74,7 +67,7 @@ class AudioClassifier (nn.Module):
         conv_layers += [self.conv1, self.relu1, self.bn1]
 
         # Deuxième bloc
-        self.conv2 = nn.Conv2d(8, 16, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1))
+        self.conv2 = nn.Conv2d(8, 16, kernel_size=(5, 5), stride=(2, 2), padding=(1, 1))
         self.relu2 = nn.ReLU()
         self.bn2 = nn.BatchNorm2d(16)
         init.kaiming_normal_(self.conv2.weight, a=0.1)
@@ -82,7 +75,7 @@ class AudioClassifier (nn.Module):
         conv_layers += [self.conv2, self.relu2, self.bn2]
 
         # Troisième bloc
-        self.conv3 = nn.Conv2d(16, 32, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1))
+        self.conv3 = nn.Conv2d(16, 32, kernel_size=(5, 5), stride=(2, 2), padding=(1, 1))
         self.relu3 = nn.ReLU()
         self.bn3 = nn.BatchNorm2d(32)
         init.kaiming_normal_(self.conv3.weight, a=0.1)
@@ -90,7 +83,7 @@ class AudioClassifier (nn.Module):
         conv_layers += [self.conv3, self.relu3, self.bn3]
 
         # Quatrième bloc
-        self.conv4 = nn.Conv2d(32, 64, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1))
+        self.conv4 = nn.Conv2d(32, 64, kernel_size=(5, 5), stride=(2, 2), padding=(1, 1))
         self.relu4 = nn.ReLU()
         self.bn4 = nn.BatchNorm2d(64)
         init.kaiming_normal_(self.conv4.weight, a=0.1)
@@ -98,28 +91,36 @@ class AudioClassifier (nn.Module):
         conv_layers += [self.conv4, self.relu4, self.bn4]
 
         # Cinquième bloc
-        self.conv5 = nn.Conv2d(64, 128, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1))
+        self.conv5 = nn.Conv2d(64, 128, kernel_size=(5, 5), stride=(2, 2), padding=(1, 1))
         self.relu5 = nn.ReLU()
         self.bn5 = nn.BatchNorm2d(128)
         init.kaiming_normal_(self.conv5.weight, a=0.1)
         self.conv5.bias.data.zero_()
         conv_layers += [self.conv5, self.relu5, self.bn5]
 
-        # Cinquième bloc
-        self.conv6 = nn.Conv2d(128, 256, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1))
+        # Sixième bloc
+        self.conv6 = nn.Conv2d(128, 256, kernel_size=(5, 5), stride=(2, 2), padding=(1, 1))
         self.relu6 = nn.ReLU()
         self.bn6 = nn.BatchNorm2d(256)
         init.kaiming_normal_(self.conv6.weight, a=0.1)
-        self.conv5.bias.data.zero_()
+        self.conv6.bias.data.zero_()
         conv_layers += [self.conv6, self.relu6, self.bn6]
 
-        # Cinquième bloc
-        self.conv7 = nn.Conv2d(256, 512, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1))
+        # Septième bloc
+        self.conv7 = nn.Conv2d(256, 512, kernel_size=(5, 5), stride=(2, 2), padding=(1, 1))
         self.relu7 = nn.ReLU()
         self.bn7 = nn.BatchNorm2d(512)
         init.kaiming_normal_(self.conv7.weight, a=0.1)
-        self.conv5.bias.data.zero_()
+        self.conv7.bias.data.zero_()
         conv_layers += [self.conv7, self.relu7, self.bn7]
+
+        # Huitième bloc
+        self.conv8 = nn.Conv2d(512, 512, kernel_size=(5, 5), stride=(2, 2), padding=(1, 1))
+        self.relu8 = nn.ReLU()
+        self.bn8 = nn.BatchNorm2d(512)
+        init.kaiming_normal_(self.conv8.weight, a=0.1)
+        self.conv8.bias.data.zero_()
+        conv_layers += [self.conv8, self.relu8, self.bn8]
 
         # Classifieur linéaire
         self.ap = nn.AdaptiveAvgPool2d(output_size=1)
@@ -147,12 +148,12 @@ class AudioClassifier (nn.Module):
         return x
 
 # Create the model and put it on the GPU if available
-myModel = AudioClassifier()
+modele = AudioClassifier()
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-myModel = myModel.to(device)
+modele = modele.to(device)
 print("Modèle créé")
 # Check that it is on Cuda
-next(myModel.parameters()).device
+next(modele.parameters()).device
 
 # ----------------------------
 # Training Loop
@@ -200,9 +201,9 @@ def training(model, train_dl, num_epochs):
             # Get the predicted class with the highest score
             #_, prediction = torch.max(outputs,1)
             # Count of predictions that matched the target label
-            print(" ", outputs[0])
+            #print("\n", outputs[0])
             outputs = torch.round(outputs)
-            print(" ", outputs[0])
+            #print(outputs[0])
 
             matrix = torch.zeros((2, 2))
 
@@ -224,6 +225,7 @@ def training(model, train_dl, num_epochs):
             fp += matrix[1][0]
             vn += matrix[1][1]
             fn += matrix[0][1]
+            print(" Précision:", matrix[0][0]/(matrix[0][0]+matrix[1][0]), " Rappel:", matrix[0][0]/(matrix[0][0]+matrix[0][1]))
             
 
             #if i % 10 == 0:    # print every 10 mini-batches
@@ -241,9 +243,9 @@ def training(model, train_dl, num_epochs):
     print('Finished Training')
     return liste_precision, liste_rappel
   
-num_epochs=3
+num_epochs=10
 print("Début de l'entraînement")
-liste_precision, liste_rappel = training(myModel, train_dl, num_epochs)
+liste_precision, liste_rappel = training(modele, train_dl, num_epochs)
 
 # ----------------------------
 # Inference
@@ -297,9 +299,11 @@ def inference (model, val_dl):
         rappel = vp/(fn+vp)
         print(f'Précision: {precision:.2f}, Rappel: {rappel:.2f}, Total items: {total_prediction}')
 
+torch.save(modele, Path.cwd())
+
 # Run inference on trained model with the validation set
 print("Début de l'inférence")
-inference(myModel, val_dl)
+inference(modele, val_dl)
 
 plt.figure()
 plt.plot(np.arange(num_epochs), liste_precision, label="Précision")
