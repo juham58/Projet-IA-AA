@@ -10,7 +10,7 @@ class SoundNet5000(nn.Module):
     """
     def __init__(self):
         super().__init__()
-        self.name = "SoundNet5000Pre"
+        self.name = "SoundNet5000"
         self.C1 = nn.Conv1d(1, 64, (25,), stride=(2,), bias=False)
         self.B1 = nn.BatchNorm1d(64)
         self.C2 = nn.Conv1d(64, 64, (25,), stride=(7,), bias=False)
