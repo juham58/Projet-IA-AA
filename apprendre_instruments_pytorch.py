@@ -55,7 +55,7 @@ class AudioClassifier (nn.Module):
         super().__init__()
         conv_layers = []
 
-        # Premier bloc de convolutions avec Relu et BatchNorm
+        # Premier bloc de convolutions avec Relu, Batchnorm et Dropout
         self.conv1 = nn.Conv2d(1, 8, kernel_size=(5, 9), stride=(2, 4), padding=(2, 2))
         self.relu1 = nn.ReLU()
         self.bn1 = nn.BatchNorm2d(8)
@@ -83,7 +83,7 @@ class AudioClassifier (nn.Module):
         self.conv4 = nn.Conv2d(32, 64, kernel_size=(5, 5), stride=(2, 3), padding=(1, 1))
         self.relu4 = nn.ReLU()
         self.bn4 = nn.BatchNorm2d(64)
-        self.dropout4 = nn.Dropout(0.05)
+        self.dropout4 = nn.Dropout(0.15)
         init.kaiming_normal_(self.conv4.weight, a=0.1)
         self.conv4.bias.data.zero_()
         conv_layers += [self.conv4, self.relu4, self.bn4, self.dropout4]
@@ -92,7 +92,7 @@ class AudioClassifier (nn.Module):
         self.conv5 = nn.Conv2d(64, 128, kernel_size=(5, 5), stride=(2, 3), padding=(1, 1))
         self.relu5 = nn.ReLU()
         self.bn5 = nn.BatchNorm2d(128)
-        self.dropout5 = nn.Dropout(0.05)
+        self.dropout5 = nn.Dropout(0.15)
         init.kaiming_normal_(self.conv5.weight, a=0.1)
         self.conv5.bias.data.zero_()
         conv_layers += [self.conv5, self.relu5, self.bn5, self.dropout5]
@@ -101,7 +101,7 @@ class AudioClassifier (nn.Module):
         self.conv6 = nn.Conv2d(128, 256, kernel_size=(3, 5), stride=(2, 3), padding=(1, 1))
         self.relu6 = nn.ReLU()
         self.bn6 = nn.BatchNorm2d(256)
-        self.dropout6 = nn.Dropout(0.15)
+        self.dropout6 = nn.Dropout(0.25)
         init.kaiming_normal_(self.conv6.weight, a=0.1)
         self.conv6.bias.data.zero_()
         conv_layers += [self.conv6, self.relu6, self.bn6, self.dropout6]
@@ -110,32 +110,31 @@ class AudioClassifier (nn.Module):
         self.conv7 = nn.Conv2d(256, 512, kernel_size=(1, 5), stride=(2, 3), padding=(1, 1))
         self.relu7 = nn.ReLU()
         self.bn7 = nn.BatchNorm2d(512)
-        self.dropout7 = nn.Dropout(0.15)
+        self.dropout7 = nn.Dropout(0.25)
         init.kaiming_normal_(self.conv7.weight, a=0.1)
         self.conv7.bias.data.zero_()
         conv_layers += [self.conv7, self.relu7, self.bn7, self.dropout7]
 
         # Huitième bloc
-        self.conv8 = nn.Conv2d(512, 2048, kernel_size=(1, 3), stride=(1, 2), padding=(1, 1))
+        self.conv8 = nn.Conv2d(512, 1024, kernel_size=(1, 3), stride=(1, 2), padding=(1, 1))
         self.relu8 = nn.ReLU()
-        self.bn8 = nn.BatchNorm2d(2048)
-        self.dropout8 = nn.Dropout()
+        self.bn8 = nn.BatchNorm2d(1024)
+        self.dropout8 = nn.Dropout(0.25)
         init.kaiming_normal_(self.conv8.weight, a=0.1)
         self.conv8.bias.data.zero_()
         conv_layers += [self.conv8, self.relu8, self.bn8]
 
         # Classifieur linéaire
         self.ap = nn.AdaptiveAvgPool2d(output_size=1)
-        self.lin = nn.Linear(in_features=2048, out_features=11)
+        self.lin = nn.Linear(in_features=1024, out_features=11)
 
         self.conv = nn.Sequential(*conv_layers)
  
     def forward(self, x):
         x = self.conv(x)
-
         x = self.ap(x)
-        x = x.view(x.shape[0], -1)
 
+        x = x.view(x.shape[0], -1)
         x = self.lin(x)
         x = torch.sigmoid(x)
         return x
@@ -185,7 +184,7 @@ def inference(model, val_dl):
         acc = correct_prediction/total_prediction
         precision = vp/(fp+vp)
         rappel = vp/(fn+vp)
-        print(f'"--VALIDATION-- Précision: {precision:.2f}, Rappel: {rappel:.2f}, Total items: {total_prediction}')
+        print(f'--VALIDATION-- Précision: {precision:.2f}, Rappel: {rappel:.2f}')
         return precision, rappel
 
 def training(model, train_dl, num_epochs):
@@ -195,10 +194,7 @@ def training(model, train_dl, num_epochs):
     liste_rappel_valid = []
     criterion = nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters(),lr=0.001)
-    scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer, max_lr=0.001,
-                                                    steps_per_epoch=int(len(train_dl)),
-                                                    epochs=num_epochs,
-                                                    anneal_strategy='linear')
+    scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer, max_lr=0.001, steps_per_epoch=int(len(train_dl)), epochs=num_epochs, anneal_strategy='linear')
     for epoch in range(num_epochs):
         vp, fp, vn, fn = 0, 0, 0, 0
         running_loss = 0.0
@@ -219,11 +215,9 @@ def training(model, train_dl, num_epochs):
             scheduler.step()
 
             running_loss += loss.item()
-
             outputs = torch.round(outputs)
 
             matrix = torch.zeros((2, 2))
-
             non_predictions = torch.where(outputs == 1, 0, 1)
             non_labels = torch.where(labels == 1, 0, 1)
 
@@ -259,13 +253,13 @@ def training(model, train_dl, num_epochs):
     print('Entraînement terminé\n')
     return liste_precision, liste_rappel, liste_precision_valid, liste_rappel_valid
   
-num_epochs=2
+num_epochs=12
 print("Début de l'entraînement")
 liste_precision, liste_rappel, liste_precision_valid, liste_rappel_valid = training(modele, train_dl, num_epochs)
 
 torch.save(modele.state_dict(), Path.cwd()/"apprendre_instruments.pth")
 
-print("Début de l'inférence")
+print("Début de l'inférence finale")
 inference(modele, val_dl)
 
 plt.figure()
