@@ -47,7 +47,7 @@ train_ds, val_ds = random_split(train_set, [num_train, num_val])
 
 # Create training and validation data loaders
 train_dl = torch.utils.data.DataLoader(train_ds, batch_size=15, shuffle=True)
-val_dl = torch.utils.data.DataLoader(val_ds, batch_size=15, shuffle=False)
+val_dl = torch.utils.data.DataLoader(val_ds, batch_size=15, shuffle=True)
 print("Dataloaders créés")
 
 class AudioClassifier (nn.Module):
@@ -83,38 +83,43 @@ class AudioClassifier (nn.Module):
         self.conv4 = nn.Conv2d(32, 64, kernel_size=(5, 5), stride=(2, 3), padding=(1, 1))
         self.relu4 = nn.ReLU()
         self.bn4 = nn.BatchNorm2d(64)
+        self.dropout4 = nn.Dropout(0.05)
         init.kaiming_normal_(self.conv4.weight, a=0.1)
         self.conv4.bias.data.zero_()
-        conv_layers += [self.conv4, self.relu4, self.bn4]
+        conv_layers += [self.conv4, self.relu4, self.bn4, self.dropout4]
 
         # Cinquième bloc
         self.conv5 = nn.Conv2d(64, 128, kernel_size=(5, 5), stride=(2, 3), padding=(1, 1))
         self.relu5 = nn.ReLU()
         self.bn5 = nn.BatchNorm2d(128)
+        self.dropout5 = nn.Dropout(0.05)
         init.kaiming_normal_(self.conv5.weight, a=0.1)
         self.conv5.bias.data.zero_()
-        conv_layers += [self.conv5, self.relu5, self.bn5]
+        conv_layers += [self.conv5, self.relu5, self.bn5, self.dropout5]
 
         # Sixième bloc
         self.conv6 = nn.Conv2d(128, 256, kernel_size=(3, 5), stride=(2, 3), padding=(1, 1))
         self.relu6 = nn.ReLU()
         self.bn6 = nn.BatchNorm2d(256)
+        self.dropout6 = nn.Dropout(0.15)
         init.kaiming_normal_(self.conv6.weight, a=0.1)
         self.conv6.bias.data.zero_()
-        conv_layers += [self.conv6, self.relu6, self.bn6]
+        conv_layers += [self.conv6, self.relu6, self.bn6, self.dropout6]
 
         # Septième bloc
         self.conv7 = nn.Conv2d(256, 512, kernel_size=(1, 5), stride=(2, 3), padding=(1, 1))
         self.relu7 = nn.ReLU()
         self.bn7 = nn.BatchNorm2d(512)
+        self.dropout7 = nn.Dropout(0.15)
         init.kaiming_normal_(self.conv7.weight, a=0.1)
         self.conv7.bias.data.zero_()
-        conv_layers += [self.conv7, self.relu7, self.bn7]
+        conv_layers += [self.conv7, self.relu7, self.bn7, self.dropout7]
 
         # Huitième bloc
         self.conv8 = nn.Conv2d(512, 2048, kernel_size=(1, 3), stride=(1, 2), padding=(1, 1))
         self.relu8 = nn.ReLU()
         self.bn8 = nn.BatchNorm2d(2048)
+        self.dropout8 = nn.Dropout()
         init.kaiming_normal_(self.conv8.weight, a=0.1)
         self.conv8.bias.data.zero_()
         conv_layers += [self.conv8, self.relu8, self.bn8]
@@ -203,11 +208,12 @@ def training(model, train_dl, num_epochs):
         liste_precision.append(precision)
         liste_rappel.append(rappel)
         print(f'Epoch: {epoch}, Loss: {avg_loss:.2f}, Précision: {precision:.2f}, Rappel: {rappel:.2f}')
+        inference(modele, val_dl)
 
-    print('Finished Training')
+    print('Entraînement terminé\n')
     return liste_precision, liste_rappel
   
-num_epochs=50
+num_epochs=20
 print("Début de l'entraînement")
 liste_precision, liste_rappel = training(modele, train_dl, num_epochs)
 
@@ -251,7 +257,7 @@ def inference (model, val_dl):
         acc = correct_prediction/total_prediction
         precision = vp/(fp+vp)
         rappel = vp/(fn+vp)
-        print(f'Précision: {precision:.2f}, Rappel: {rappel:.2f}, Total items: {total_prediction}')
+        print(f'"--VALIDATION-- Précision: {precision:.2f}, Rappel: {rappel:.2f}, Total items: {total_prediction}')
 
 torch.save(modele.state_dict(), Path.cwd()/"apprendre_instruments.pth")
 
