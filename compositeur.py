@@ -124,17 +124,13 @@ def train(model, train_set, validation_set, device, nb_epoch=1000, learning_rate
 
     # Création du sampler avec les classes balancées
     # Create the sampler with balanced classes
-
-    # balanced_train_sampler = create_balanced_sampler(train_set)
-    # balanced_validation_sampler = create_balanced_sampler(validation_set)
+    balanced_train_sampler = create_balanced_sampler(train_set)
+    balanced_validation_sampler = create_balanced_sampler(validation_set)
 
     # Création du dataloader d'entraînement
     # Create training dataloader
-
-    # train_loader = DataLoader(train_set, batch_size=batch_size, sampler=balanced_train_sampler)
-    # validation_loader = DataLoader(validation_set, batch_size=batch_size, sampler=balanced_validation_sampler)
-    train_loader = DataLoader(train_set, batch_size=batch_size)
-    validation_loader = DataLoader(validation_set, batch_size=batch_size)
+    train_loader = DataLoader(train_set, batch_size=batch_size, sampler=balanced_train_sampler)
+    validation_loader = DataLoader(validation_set, batch_size=batch_size, sampler=balanced_validation_sampler)
 
     def train_model():
         def compute_accuracy(dataloader):
