@@ -1,7 +1,7 @@
 # Projet d'Introduction à l'apprentissage automatique
 ## Musicnet
 
-Les données utilisées proviennent du [jeu de données Musicnet sur Kaggle](https://www.kaggle.com/imsparsh/musicnet-dataset)
+Les données utilisées proviennent du [jeu de données Musicnet sur Kaggle](https://www.kaggle.com/imsparsh/musicnet-dataset). Il faut placer les données dans un dossier musicnet/data et les labels dans un dossier musicnet/labels.
 
 ## Tâches à solutionner
 
