@@ -6,13 +6,17 @@ import numpy as np
 
 import torch
 from torch.utils.data import Dataset, DataLoader
+from torch.optim import SGD
 
 from matplotlib import pyplot as plt
 import matplotlib
 
 from MusicDataset import MusicDataset
 from Models import SoundNet5000, SoundNet50000
-from torch.optim import SGD
+
+os.environ["OMP_NUM_THREADS"] = "1"
+DEVICE = str(torch.device('cuda')) if torch.cuda.is_available() else str(torch.device('cpu'))
+matplotlib.rcParams['figure.figsize'] = (14.0, 7.0)
 
 
 def create_balanced_sampler(dataset):
@@ -57,11 +61,20 @@ def make_bar_plots():
     path = "musicnet_metadata.csv"
     raw_data = np.asarray(pd.read_csv(path))
     raw_data = raw_data[:, [0, 1, 5, 6]]
-    for i in range(raw_data.shape[0]):
-        if raw_data[i, 1] == "Beethoven":
-            raw_data[i, 1] = 1
-        else:
-            raw_data[i, 1] = 0
+
+    authors = np.unique(raw_data[:, 1])
+    n_authors = np.zeros(authors.shape)
+    for i in range(authors.shape[0]):
+        for j in range(raw_data.shape[0]):
+            if raw_data[j, 1] == authors[i]:
+                n_authors[i] += 1
+    fig, subfig = plt.subplots(1, 1, tight_layout=True)
+    plt.bar(np.arange(authors.shape[0]), n_authors, color='b', width=0.25)
+    subfig.xaxis.set_ticks(np.arange(authors.shape[0]), authors)
+    subfig.set_title("Nombre de données par compositeur")
+    plt.setp(subfig.xaxis.get_ticklabels(), rotation="vertical")
+    plt.show()
+
     list_source = np.unique(raw_data[:, 2])
     list_transcriber = np.unique(raw_data[:, 3])
     sources_beethoven = np.zeros(list_source.shape[0])
@@ -70,25 +83,24 @@ def make_bar_plots():
     transcriber_other = np.zeros(list_transcriber.shape[0])
     for i in range(list_source.shape[0]):
         for j in range(raw_data.shape[0]):
-            if (raw_data[j, 1] == 1) and (raw_data[j, 2] == list_source[i]):
+            if (raw_data[j, 1] == "Beethoven") and (raw_data[j, 2] == list_source[i]):
                 sources_beethoven[i] += 1
-            elif (raw_data[j, 1] == 0) and (raw_data[j, 2] == list_source[i]):
+            elif (raw_data[j, 1] != "Beethoven") and (raw_data[j, 2] == list_source[i]):
                 sources_other[i] += 1
     for i in range(list_transcriber.shape[0]):
         for j in range(raw_data.shape[0]):
-            if (raw_data[j, 1] == 1) and (raw_data[j, 3] == list_transcriber[i]):
+            if (raw_data[j, 1] == "Beethoven") and (raw_data[j, 3] == list_transcriber[i]):
                 transcriber_beethoven[i] += 1
-            elif (raw_data[j, 1] == 0) and (raw_data[j, 3] == list_transcriber[i]):
+            elif (raw_data[j, 1] != "Beethoven") and (raw_data[j, 3] == list_transcriber[i]):
                 transcriber_other[i] += 1
 
-    matplotlib.rcParams['figure.figsize'] = (14.0, 7.0)
     fig, subfigs = plt.subplots(1, 2, tight_layout=True)
     subfig = subfigs[0]
     nb_sources = np.arange(list_source.shape[0])
     subfig.bar(nb_sources, sources_beethoven, color='b', width=0.25, label="Beethoven")
     subfig.bar(nb_sources + 0.25, sources_other, color='g', width=0.25, label="other")
     subfig.legend()
-    subfig.set_title("Source of the data per class")
+    subfig.set_title("Nombre de données par source pour chaque classe")
     subfig.xaxis.set_ticks(nb_sources, list_source)
     plt.setp(subfig.xaxis.get_ticklabels(), rotation="vertical")
 
@@ -97,7 +109,7 @@ def make_bar_plots():
     subfig.bar(nb_transcribers, transcriber_beethoven, color='b', width=0.25, label="Beethoven")
     subfig.bar(nb_transcribers + 0.25, transcriber_other, color='g', width=0.25, label="other")
     subfig.legend()
-    subfig.set_title("Transcriber of the data per class")
+    subfig.set_title("Nombre de données par transcripteur pour chaque classe")
     subfig.xaxis.set_ticks(nb_transcribers, list_transcriber)
     plt.setp(subfig.xaxis.get_ticklabels(), rotation="vertical")
     plt.show()
@@ -112,13 +124,17 @@ def train(model, train_set, validation_set, device, nb_epoch=1000, learning_rate
 
     # Création du sampler avec les classes balancées
     # Create the sampler with balanced classes
-    balanced_train_sampler = create_balanced_sampler(train_set)
-    balanced_validation_sampler = create_balanced_sampler(validation_set)
+
+    # balanced_train_sampler = create_balanced_sampler(train_set)
+    # balanced_validation_sampler = create_balanced_sampler(validation_set)
 
     # Création du dataloader d'entraînement
     # Create training dataloader
-    train_loader = DataLoader(train_set, batch_size=batch_size, sampler=balanced_train_sampler)
-    validation_loader = DataLoader(validation_set, batch_size=batch_size, sampler=balanced_validation_sampler)
+
+    # train_loader = DataLoader(train_set, batch_size=batch_size, sampler=balanced_train_sampler)
+    # validation_loader = DataLoader(validation_set, batch_size=batch_size, sampler=balanced_validation_sampler)
+    train_loader = DataLoader(train_set, batch_size=batch_size)
+    validation_loader = DataLoader(validation_set, batch_size=batch_size)
 
     def train_model():
         def compute_accuracy(dataloader):
@@ -212,9 +228,9 @@ def train(model, train_set, validation_set, device, nb_epoch=1000, learning_rate
     plt.plot(scores[:, 0], scores[:, 1], color="blue", label="Score en entrainement")
     plt.plot(scores[:, 0], scores[:, 2], color="red", label="Score en validation")
     plt.ylabel("Scores")
-    plt.xlabel("Number of epoch")
+    plt.xlabel("Nombres d'époque")
     plt.legend()
-    plt.title("Scores for " + model.name)
+    plt.title("Scores pour " + model.name)
     plt.show()
 
 
@@ -232,9 +248,6 @@ if __name__ == '__main__':
     # - Learning rate (learning_rate = 0.01)
     # - Momentum (momentum = 0.9)
     # - Batch size (batch_size = 32)
-    os.environ["OMP_NUM_THREADS"] = "1"
-    DEVICE = str(torch.device('cuda')) if torch.cuda.is_available() else str(torch.device('cpu'))
-
     make_bar_plots()
 
     sets = get_data()
