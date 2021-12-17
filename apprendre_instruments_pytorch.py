@@ -45,7 +45,6 @@ num_train = round(num_items * 0.8)
 num_val = num_items - num_train
 train_ds, val_ds = random_split(train_set, [num_train, num_val])
 
-# Create training and validation data loaders
 train_dl = torch.utils.data.DataLoader(train_ds, batch_size=15, shuffle=True)
 val_dl = torch.utils.data.DataLoader(val_ds, batch_size=15, shuffle=True)
 print("Dataloaders créés")
@@ -253,7 +252,7 @@ def training(model, train_dl, num_epochs):
     print('Entraînement terminé\n')
     return liste_precision, liste_rappel, liste_precision_valid, liste_rappel_valid
   
-num_epochs=12
+num_epochs=18
 print("Début de l'entraînement")
 liste_precision, liste_rappel, liste_precision_valid, liste_rappel_valid = training(modele, train_dl, num_epochs)
 
