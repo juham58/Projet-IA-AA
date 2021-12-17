@@ -146,9 +146,53 @@ modele = modele.to(device)
 print("Modèle créé")
 next(modele.parameters()).device
 
+def inference(model, val_dl):
+    correct_prediction = 0
+    total_prediction = 0
+
+    with torch.no_grad():
+        vp, fp, vn, fn = 0, 0, 0, 0
+        for data in val_dl:
+            inputs, labels = data[0].to(device), data[1].to(device)
+
+            inputs_m, inputs_s = inputs.mean(), inputs.std()
+            inputs = (inputs - inputs_m) / inputs_s
+
+            outputs = model(inputs)
+            outputs = torch.round(outputs)
+
+            matrix = torch.zeros((2, 2))
+
+            non_predictions = torch.where(outputs == 1, 0, 1)
+            non_labels = torch.where(labels == 1, 0, 1)
+
+            matrix[0][0] = torch.sum(torch.where(outputs+labels == 2, 1, 0))
+            matrix[1][1] = torch.sum(torch.where(outputs+labels == 0, 1, 0))
+            
+            # Si les targets positives correspondent au contraire des predictions: faux négatif
+            matrix[0][1] = torch.sum(torch.where(non_predictions+labels == 2, 1, 0))
+            
+            # Si les predictions positives correspondent au contraire des targets: faux positif
+            matrix[1][0] = torch.sum(torch.where(outputs+non_labels == 2, 1, 0))
+
+            correct_prediction += (outputs == labels).sum().item()
+            total_prediction += outputs.shape[0]
+            vp += matrix[0][0]
+            fp += matrix[1][0]
+            vn += matrix[1][1]
+            fn += matrix[0][1]
+
+        acc = correct_prediction/total_prediction
+        precision = vp/(fp+vp)
+        rappel = vp/(fn+vp)
+        print(f'"--VALIDATION-- Précision: {precision:.2f}, Rappel: {rappel:.2f}, Total items: {total_prediction}')
+        return precision, rappel
+
 def training(model, train_dl, num_epochs):
     liste_precision = []
+    liste_precision_valid = []
     liste_rappel = []
+    liste_rappel_valid = []
     criterion = nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters(),lr=0.001)
     scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer, max_lr=0.001,
@@ -208,56 +252,16 @@ def training(model, train_dl, num_epochs):
         liste_precision.append(precision)
         liste_rappel.append(rappel)
         print(f'Epoch: {epoch}, Loss: {avg_loss:.2f}, Précision: {precision:.2f}, Rappel: {rappel:.2f}')
-        inference(modele, val_dl)
+        precision_valid, rappel_valid = inference(modele, val_dl)
+        liste_precision_valid.append(precision_valid)
+        liste_rappel_valid.append(rappel_valid)
 
     print('Entraînement terminé\n')
-    return liste_precision, liste_rappel
+    return liste_precision, liste_rappel, liste_precision_valid, liste_rappel_valid
   
-num_epochs=20
+num_epochs=2
 print("Début de l'entraînement")
-liste_precision, liste_rappel = training(modele, train_dl, num_epochs)
-
-
-def inference (model, val_dl):
-    correct_prediction = 0
-    total_prediction = 0
-
-    with torch.no_grad():
-        vp, fp, vn, fn = 0, 0, 0, 0
-        for data in val_dl:
-            inputs, labels = data[0].to(device), data[1].to(device)
-
-            inputs_m, inputs_s = inputs.mean(), inputs.std()
-            inputs = (inputs - inputs_m) / inputs_s
-
-            outputs = model(inputs)
-            outputs = torch.round(outputs)
-
-            matrix = torch.zeros((2, 2))
-
-            non_predictions = torch.where(outputs == 1, 0, 1)
-            non_labels = torch.where(labels == 1, 0, 1)
-
-            matrix[0][0] = torch.sum(torch.where(outputs+labels == 2, 1, 0))
-            matrix[1][1] = torch.sum(torch.where(outputs+labels == 0, 1, 0))
-            
-            # Si les targets positives correspondent au contraire des predictions: faux négatif
-            matrix[0][1] = torch.sum(torch.where(non_predictions+labels == 2, 1, 0))
-            
-            # Si les predictions positives correspondent au contraire des targets: faux positif
-            matrix[1][0] = torch.sum(torch.where(outputs+non_labels == 2, 1, 0))
-
-            correct_prediction += (outputs == labels).sum().item()
-            total_prediction += outputs.shape[0]
-            vp += matrix[0][0]
-            fp += matrix[1][0]
-            vn += matrix[1][1]
-            fn += matrix[0][1]
-
-        acc = correct_prediction/total_prediction
-        precision = vp/(fp+vp)
-        rappel = vp/(fn+vp)
-        print(f'"--VALIDATION-- Précision: {precision:.2f}, Rappel: {rappel:.2f}, Total items: {total_prediction}')
+liste_precision, liste_rappel, liste_precision_valid, liste_rappel_valid = training(modele, train_dl, num_epochs)
 
 torch.save(modele.state_dict(), Path.cwd()/"apprendre_instruments.pth")
 
@@ -265,8 +269,10 @@ print("Début de l'inférence")
 inference(modele, val_dl)
 
 plt.figure()
-plt.plot(np.arange(num_epochs), liste_precision, label="Précision")
-plt.plot(np.arange(num_epochs), liste_rappel, label="Rappel")
+plt.plot(np.arange(num_epochs), liste_precision, color="blue", label="Précision en entraînement")
+plt.plot(np.arange(num_epochs), liste_rappel, color="red", label="Rappel en entraînement")
+plt.plot(np.arange(num_epochs), liste_precision_valid, color="blue", linestyle="dashed", label="Précision en validation")
+plt.plot(np.arange(num_epochs), liste_rappel_valid, color="red", linestyle="dashed", label="Rappel en validation")
 plt.xlabel("Epochs")
 plt.ylabel("Précision et rappel")
 plt.legend()
